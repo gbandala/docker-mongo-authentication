@@ -1,6 +1,6 @@
-# Microservicio CatClientes
+# Contenedor Express-Mongodb-Authentication
 
-_Implementación con Node Js, Express, MVC_
+_Implementación con Node Js, Express, MVC, con acceso authenticado_
 
 ### Pre-requisitos 📋
 
@@ -8,19 +8,16 @@ _Que cosas necesitarás_
 
 ```
 Framework Node Js
+
 Docker
 Editor de código (Visual Code)
 Git
 Postman
-Cuenta en dockerHub
 Cuenta en GitHub
 ```
-### Crear estrucutura del microservicio
+### Crear estructura del proyecto
 
-_Crear una estructura de carpetas independientes ligero de node js y postman_
-
-
-_Estructura general_
+_Estructura general inicial_
 
 ```
 apiclientes
@@ -30,12 +27,13 @@ apiclientes
       customer.js
     app.js
     keys.js
+
 ```
 
-_cadena de conexion, cuando se prueba en local ponemos localhost, pero al pasarlo al contenedor ponemos el nombre del servidor o contenedor_
+_cadena de conexion,considerando el usuario y password_
 
 ```javascript
-const DbConnection='mongodb://mongoserver:27017/galeria';
+const DbConnection='mongodb://apiuser:apipassword@mongoserver:27017/galeria';
 ```
 _API get_
 
@@ -54,43 +52,88 @@ _En el controller el archivo admin.js, estarán las funciones_
 exports.customersInq = function (req, res) {
     Customer.find({},{_id:0,id_cliente:1,cliente:1,direccion:1,telefono:1},function (err, doc) {
         if (err) return console.log(err);
+        console.log("---------------------------------------------");
         console.log("Clientes encontrados...");
         console.log(doc);
+        console.log("---------------------------------------------");
         res.send(doc);
     }).sort({cliente:1});
 };
-
 exports.customerAdd = (req, res) => {
     client = new  Customer({
         id_cliente: req.body.id_cliente,
         cliente: req.body.cliente,
         direccion: req.body.direccion,
-        telefono: req.body.telefono
-        
+        telefono: req.body.telefono     
     })
+    console.log("---------------------------------------------");
+    console.log("datos recibidos del body");
     console.log(client);
     client.save(function (err, client) {
         if (err) return console.error(err);
+        console.log(client.cliente + " insertado en la coleccion ...");
+        console.log("---------------------------------------------");
         res.send(client.cliente + " insertado en la coleccion ...");
     });
 }
 ```
-_Resumen de ejecución_
+
+### Crear el archivo de inicio de la bd
+
+_Estructura mongo-init.js_
+
+```javascript
+//crear el usuario de servicio
+db.createUser({
+    user:"apiuser",
+    pwd:"apipassword",
+    roles:[
+        {
+            role:"readWrite",
+            db:"galeria"
+        }
+        
+    ]
+});
+//heredar acceso de lectura escritura
+db.grantRolesToUser( "apiuser", [ "readWrite" ] );
+//habilitar uso desde shell y cadena de conexion
+db.auth('apiuser', 'apipassword');
+//crear la bd
+db = db.getSiblingDB('galeria');
+//crear colleccion y fijar creacion de bd
+db.catclientes_ga.insertMany([
+    {
+        "id_cliente": 10001,
+        "cliente": "Jorge Pedante",
+        "direccion": "Calle XXXXX # 400 Col, YYYYY, CP 20040",
+        "telefono": "52-5527143789"
+    },
+    {
+        "id_cliente": 10002,
+        "cliente": "Manuel Alcazar",
+        "direccion": "Calle XXXXX # 400 Col, YYYYY, CP 20040",
+        "telefono": "52-5527143789"
+    },
+    {
+        "id_cliente": 10003,
+        "cliente": "Pedro Torres",
+        "direccion": "Calle XXXXX # 400 Col, YYYYY, CP 20040",
+        "telefono": "52-5527143789"
+    }
+]);
+```
+
+_Resumen de creación_
 
 > * Crear el código de controller
 > * Crear el código del api e invocar el controller
 > * Instalar las librerías eje. npm install express body-parser
 > * Hacer el npm init para documentar el servicio
-> * Editar el package.json en la línea script: "start":"nodemon app.js"
-> * Encender la BD mongo local
-> * Ejecutar eje. node app.js y en su defecto corregir errores
-> * Validar en postman la URL con los parámetros eje localhost:2000/...
-> * Validar logs en el servidor de la ejecución
+> * Editar el package.json en la línea script: "start":"node app.js"
+> * Crear el archivo mongo-init.js para usuarios y carga de datos inicial
+> * Crear el archivo docker-compose.yml con las instrucciones de armado
 
-
-## Crear la imagen api_clientes del servicio apiclientes  ⚙️
-
-_Validado que funciona el servicio, se puede crear una imagen docker_
 
 _Crear Dockerfile_
 
@@ -102,25 +145,13 @@ COPY  package*.json ./
 RUN npm install
 COPY . .
 EXPOSE 1500
-CMD ["node","app.js"]
+CMD ["npm","start"]
 ```
 
 _Crear .dockerignore para no considerar la carpeta librerías (drivers)_
 
 ```
 node_modules
-```
-
-_Crear Imagen Docker, estos nombres serán los mismos a user en el compose_
-
-```Dockerfile
-docker build -t api_clientes .
-```
-
-_Validar la Imagen Docker_
-
-```Dockerfile
-docker images
 ```
 
 ### Orquestar los servicios 🔩
@@ -145,8 +176,11 @@ apiclientes
       customer.js
     app.js
     keys.js
+    mongo-init.js
     package.json
-docker-compose.yml
+    Dockerfile
+    .dockerignore
+    docker-compose.yml
 ```
 
 ```yml
@@ -154,6 +188,10 @@ version: '3'
 
 #Declarar los servicios
 #depends_on para ligar conexion entre contenedores
+#environment instrucciones para el uso de bd, usuario y pass
+# adicionalamente para cargar archivo de inicializacion mongo-init.js
+# en settings de docker en la pestaña share drives debe estar habilitado el drive
+# de no hacerlo marca error de drive no compartido
 services:
   catclientes:
     container_name: apiclientes
@@ -162,10 +200,16 @@ services:
     ports:
       - '1500:1500' 
     depends_on:
-      - mongo
-  mongo:
+      - database
+  database:
     container_name: mongoserver
     image: mongo
+    environment:
+      - MONGO_INITDB_DATABASE=galeria
+      - MONGO_INITDB_ROOT_USERNAME=apiuser
+      - MONGO_INITDB_ROOT_PASSWORD=apipassword
+    volumes:
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     ports:
       - '27017:27017'
 ```
