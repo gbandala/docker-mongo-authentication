@@ -1,0 +1,18 @@
+{
+  "name": "apiclientes",
+  "version": "1.0.0",
+  "description": "Servicio catclientes con mongodb con usuario, pass y llenado incial de catalogo",
+  "main": "app.js",
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "express": "^4.17.1",
+    "mongoose": "^5.7.8"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start":"node app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Gabriel Bandala",
+  "license": "ISC"
+}
