@@ -199,6 +199,8 @@ services:
     build: .
     ports:
       - '1500:1500' 
+    networks:
+      - domain.parties 
     depends_on:
       - database
   database:
@@ -212,6 +214,17 @@ services:
       - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     ports:
       - '27017:27017'
+    networks:
+      - domain.parties 
+networks:
+  domain.parties:
+    external: true  
+
+```
+_Crear la red domain.parties antes correr el compose_
+
+```Dockerfile
+docker network create domain.parties
 ```
 
 _Crear los contenedores al correo yml_
